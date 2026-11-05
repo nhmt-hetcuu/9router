@@ -1,0 +1,83 @@
+services:
+  9router:
+    image: decolua/9router:latest
+    container_name: 9router
+    restart: always
+    ports:
+      - "20128:20128"
+    volumes:
+      # Nơi lưu cấu hình, thông tin providers và combo
+      - ./9router-data:/app/data
+      # Nơi lưu trữ nhật ký và dung lượng usage
+      - ./9router-usage:/root/.9router
+    environment:
+      - DATA_DIR=/app/data
+      - PORT=20128
+      - HOSTNAME=0.0.0.0
+      - NODE_ENV=production
+      # Trỏ Headroom Proxy làm lớp nén token
+      - HEADROOM_URL=http://headroom:8787
+    labels:
+      - com.centurylinklabs.watchtower.scope=9router
+    depends_on:
+      - headroom
+
+  headroom:
+    image: ghcr.io/chopratejas/headroom:latest
+    container_name: headroom
+    restart: always
+    ports:
+      - "8787:8787"
+    volumes:
+      # Nơi lưu cache để đối chiếu và tăng tốc
+      - ./headroom-data:/app/data
+    environment:
+      - PORT=8787
+    labels:
+      - com.centurylinklabs.watchtower.scope=9router
+
+  # ----------------------------------------------------
+  # CÔNG CỤ HỖ TRỢ
+  # ----------------------------------------------------
+  
+  # 1. Watchtower
+  # Tự động quét và cập nhật image của 9Router và Headroom lên bản mới nhất
+  watchtower:
+    image: containrrr/watchtower
+    container_name: watchtower
+    restart: always
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    # Kiểm tra mỗi 12 giờ (43200s), tự xóa image cũ để tránh nặng ổ cứng
+    # Scope "9router": chỉ đụng tới container có nhãn scope này, chạy song song được với Watchtower của stack khác
+    command: --interval 43200 --cleanup --scope 9router
+    labels:
+      - com.centurylinklabs.watchtower.scope=9router
+
+  # 2. Cloudflare Tunnel (Tùy chọn)
+  # Rất hữu ích nếu bạn cài trên máy tính ở nhà nhưng muốn dùng trên VPS/Laptop khi đi ra ngoài
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: cloudflared
+    restart: unless-stopped
+    command: tunnel --url http://9router:20128
+    # Mặc định công cụ này đang được chạy nền, bạn có thể kiểm tra logs 
+    # docker logs cloudflared để lấy link tunnel tạm thời.
+
+  # 3. Tailscale Funnel
+  tailscale:
+    image: tailscale/tailscale:latest
+    container_name: tailscale
+    volumes:
+      - tailscale-data:/var/lib/tailscale
+      - ./tailscale:/config
+    environment:
+      - TS_AUTHKEY=tskey-auth-xxxxxx
+      - TS_EXTRA_ARGS=--advertise-tags=tag:server
+      - TS_SERVE_CONFIG=/config/serve.json
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_USERSPACE=true
+    restart: unless-stopped
+
+volumes:
+  tailscale-data:

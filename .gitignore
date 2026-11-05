@@ -1,0 +1,10 @@
+# Dữ liệu runtime và cache
+9router-data/
+9router-usage/
+headroom-data/
+
+# File môi trường
+.env
+.env.*
+.evn
+*.log

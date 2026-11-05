@@ -1,0 +1,19 @@
+{
+  "TCP": {
+    "443": {
+      "HTTPS": true
+    }
+  },
+  "Web": {
+    "443": {
+      "Handlers": {
+        "/": {
+          "Proxy": "http://9router:20128"
+        }
+      }
+    }
+  },
+  "AllowFunnel": {
+    "443": true
+  }
+}
